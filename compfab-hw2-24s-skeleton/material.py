@@ -88,28 +88,37 @@ class LinearElastic(Material):
         # --------
         # TODO: Your code here. Think about which elements in d(F.T)/dF are non-zero.
         dFT_dF = np.zeros((dim2, dim2))
-        for i in []:        # <--
-            for j in []:    # <--
-                ...         # <--
+        for i in range(dim):       # <--
+             for j in range(dim):    # <--
+                  # dFT_dF[i * dim + j, j * (dim + 1)] = 1;
+                   dFT_dF[i * dim + j, dim * j + i] = 1
+
+
 
         # Compute D1
         # --------
         # TODO: Your code here.
         # HINT: The `np.eye(n)` function creates an identify matrix of size nxn
-        D1 = np.zeros((dim2, dim2))     # <--
+        D1 = np.eye(dim2) + dFT_dF
+
+
 
         # Compute D2 = d(F.trace() * I)/dF
         # --------
         # TODO: Your code here. Think about which elements in D2 are non-zero
         D2 = np.zeros((dim2, dim2))
-        for i in []:        # <--
-            for j in []:    # <--
-                ...         # <--
+        for i in range(dim):
+              for j in range(dim):
+                    D2[i * (dim + 1), j * (dim + 1)] = 1
 
+
+          
         # Compute dP/dF
         # --------
         # TODO: Your code here.
-        dP_dF = np.zeros((dim2, dim2))      # <--
+        dP_dF = self.mu * D1 + self.lm * D2
+        # print ('dP_dF: \n\n\n')
+        # print(dP_dF)
 
         return dP_dF
 

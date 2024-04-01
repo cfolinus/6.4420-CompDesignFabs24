@@ -143,7 +143,13 @@ def boundary_conditions_custom(vertices: array, tolerance: float=1e-8) -> Tuple[
     #       `(V[:, 0] < t1 + tolerance) & (V[:, 1] >= t2 - tolerance)`
     #     generates a Boolean mask for vertices whose X coordinates are smaller than t1 and whose
     #     Y coordinates are no less than t2 (both with some tolerance).
-    bc = np.zeros(V.shape[0], dtype=bool)   # <--
+    # bc = np.zeros(V.shape[0], dtype=bool)   # <--
+    bc = V[:,1] < 0.045
+    
+    # target_fixed_vertices = np.asarray([2060, 3714])
+    # target_fixed_dofs = target_fixed_vertices.reshape(-1,1) * 3 + np.arange(3)
+    # target_fixed_dofs = target_fixed_dofs.flatten()
+    # bc[target_fixed_vertices] = 1;
 
     # Set the external forces
     # --------
@@ -151,9 +157,16 @@ def boundary_conditions_custom(vertices: array, tolerance: float=1e-8) -> Tuple[
     # HINT:
     #   - Like the previous blank, you will compute a Boolean mask for the vertices to exert forces
     #     at. You could also read the `boundary_condition` function for reference.
-    f_ext_mask = np.zeros(V.shape[0], dtype=bool)   # <--
+     # f_ext_mask = np.zeros(V.shape[0], dtype=bool)   # <--
+     # target_loaded_vertices = np.asarray([89, 2475])
+     # target_loaded_dofs = target_loaded_vertices.reshape(-1,1) * 3 + np.arange(3)
+     # f_ext_mask[target_loaded_vertices] = 1
+     # f_ext = np.zeros_like(V)
+     # f_ext[f_ext_mask] = 5 * np.array([1, 3, 1])      # <--
+    
+    f_ext_mask = V[:,1] > 0.225
     f_ext = np.zeros_like(V)
-    f_ext[f_ext_mask] = [0, 0, 0]       # <--
+    f_ext[f_ext_mask] = [20, 20, -20]
 
     print(f'Boundary conditions: {bc.sum()} fixed points, {f_ext_mask.sum()} external forces')
 
