@@ -6,7 +6,7 @@ from typing import NamedTuple
 from pathlib import Path
 from typeguard import typechecked
 import fire
-
+from scipy.spatial.distance import pdist
 from intersection import triangle_plane_intersection, dist_squared
 from gcode import convert_to_gcode, write_contours
 
@@ -130,6 +130,245 @@ def slice_mesh(mesh: trimesh.Trimesh, bottom: float, top: float, dz: float) -> l
     return intersection_edges
 
 
+def findCycleDfs(current_vertex, parent_vertex, visit_status: list,
+			par: list, graph, cycles):
+
+	# If the vertex has been fully visited already
+	if visit_status[current_vertex] == 2:
+		return
+   
+     
+     
+   # If the vertex has already been visited, but not fully (flag = 1),
+   # Then we have detected a cycle and want to backtrack to find the full cycle
+	if visit_status[current_vertex] == 1:
+		other_vertices = []
+        
+        # Add the parent vertex to the list of other vertices
+		temp_vertex = parent_vertex
+		other_vertices.append(temp_vertex)
+
+		# As long as our parent vertex is not the current vertex,
+        # backtrack through the vertices
+		while temp_vertex != current_vertex:
+             
+            # Update temp_vertex to be its parent
+			temp_vertex = par[temp_vertex]
+            
+            # If temp_vertex comes back as 0, this means 
+            
+            # Add this vertex to the list of vertices in the cycle
+			other_vertices.append(temp_vertex)
+
+		# Add this list of vertices visited as a cycle
+		cycles.append(other_vertices)
+
+		return
+
+
+
+	# Update the status of this vertex to partially visited
+	par[current_vertex] = parent_vertex
+	visit_status[current_vertex] = 1
+
+	# Recursively call the DFS on the current graph
+	for other_vertex in graph[current_vertex]:
+
+		# if it has not been visited previously
+		if other_vertex == par[current_vertex]:
+			continue
+       
+		findCycleDfs(other_vertex, current_vertex, visit_status, par, graph, cycles)
+
+	# Update the status of this vertex to fully visited
+	visit_status[current_vertex] = 2
+
+
+
+# # add the edges to the graph
+# def addEdge(adjacency_list, u, v):
+     
+# 	is_duplicate_edge = v in adjacency_list[u]
+# 	if not(is_duplicate_edge):
+# 		adjacency_list[u].append(v)
+# 		adjacency_list[v].append(u)
+    
+# 	return adjacency_list
+
+# # Function to print the cycles
+# def printCycles(cycles):
+     
+# 	# print all the vertex with same cycle
+# 	for i in range(0, len(cycles)):
+
+# 		# Print the i-th cycle
+# 		print("Cycle Number %d:" % (i+1), end = " ")
+# 		for x in cycles[i]:
+# 			print(x, end = " ")
+# 		print()
+
+# def getInitialConnectedNodeIndex (initial_node_index, adjacency_list):
+
+#      # temp_edges = [adjacency_list[i] for i in range(len(adjacency_list)) 
+#      #                  if initial_node_index in adjacency_list[i]]
+          
+#      # initial_edge = temp_edges[0]
+#      # temp_node_index = [initial_edge[i] for i in range(2) if initial_edge[i] != initial_node_index]
+#      # connected_node_index = temp_node_index[0]
+     
+     
+#      connected_node_indices = adjacency_list[initial_node_index]
+#      connected_node_index = connected_node_indices[0]
+
+
+#      return connected_node_index
+
+
+def find_and_add_closest_node(current_nodes, temp_contour, maximum_tol):
+     
+     # Check that current_nodes has entries -- if it doesn't, exit (no nodes to be added)
+     try:
+          if (current_nodes.shape[1] == 0):
+               exit_flag = 2
+               return current_nodes, temp_contour, exit_flag
+     except:
+          exit_flag = 2
+          return current_nodes, temp_contour, exit_flag
+
+     # Find the closest node to the current END node of the contour
+     node_displacements = current_nodes - temp_contour[-1]
+     node_distances = np.sqrt(np.sum(node_displacements**2, axis = 2))
+     min_distance_indices = np.where(node_distances == np.min(node_distances))
+
+     # If there are multiple locations with equal minima, select the first one
+     closest_node_index = np.array([min_distance_indices[0][0], 
+                                   min_distance_indices[1][0]])
+
+     # Check whether this node is within the tolerance
+     is_node_in_tolerance = node_distances[closest_node_index[0],
+                                           closest_node_index[1]] <= maximum_tol
+
+     # If node is within tolerance, add it to our contour
+     if is_node_in_tolerance:
+          
+          # Get both points associated with this edge
+          temp_closest_node = current_nodes[closest_node_index[0],
+                                         closest_node_index[1],
+                                         :]
+          temp_closest_node_connection = current_nodes[int(not(closest_node_index[0])),
+                                          closest_node_index[1],
+                                          :]
+          
+          is_closed_contour = np.all(temp_contour[-1] == temp_closest_node_connection)
+
+                                 
+          if is_closed_contour:
+               if not(np.all(temp_closest_node == temp_contour[-1])):
+                    temp_contour.append(temp_closest_node)
+                    
+               # Update list of available nodes/edges
+               current_nodes = np.delete(current_nodes, closest_node_index[1], axis = 1)
+
+          else:
+                            
+               # If the new closest node is exactly equal to the current end node, directly add the other point of the edge
+               if np.all(temp_closest_node == temp_contour[-1]):
+                    temp_contour.append(temp_closest_node_connection)
+               
+               # Otherwise, add the closest node AND the other point on the edge
+               else:
+                    temp_contour.append(temp_closest_node)
+                    temp_contour.append(temp_closest_node_connection)
+                    
+               # Update list of available nodes/edges
+               current_nodes = np.delete(current_nodes, closest_node_index[1], axis = 1)
+               
+          exit_flag = 0
+          
+     # If there were no neighbors in tolerance, return an empty contour
+     else:
+           exit_flag = 1
+               
+     return temp_contour, current_nodes, exit_flag
+                         
+               
+               
+def find_individual_contour(current_nodes, maximum_tol):
+     
+     # Initialize contour with first point
+     temp_contour = []
+     temp_edge_index = 0
+     temp_contour.append(current_nodes[0, temp_edge_index, :])
+     temp_contour.append(current_nodes[1, temp_edge_index, :])
+     
+     # Update list of available nodes/edges             
+     current_nodes = np.delete(current_nodes, temp_edge_index, axis = 1)
+     
+     # Initialize convergence criteria
+     are_remaining_nodes = True
+     is_closed_contour = False
+     are_remaining_nodes = True
+     num_iterations = 0;
+     max_num_iterations = 5000
+     is_search_converged = any([(num_iterations >= max_num_iterations),
+                              is_closed_contour,
+                              not(are_remaining_nodes)])
+     exit_flag1 = 0
+     exit_flag2 = 0
+        
+     while not(is_search_converged):
+            
+            # Search for point to add to beginning of contour
+            temp_contour, current_nodes, exit_flag1 = \
+                 find_and_add_closest_node(current_nodes, temp_contour, maximum_tol)            
+     
+            # Update convergence criteria: did we finish the contour by trying to connect a point to the end?
+            are_remaining_nodes = check_for_remaining_nodes(current_nodes)
+            try:
+                 is_closed_contour = np.all(temp_contour[0] == temp_contour[-1])
+            except:
+                 is_closed_contour = True
+                 
+            is_beginning_converged = any([(num_iterations >= 5),
+                                      is_closed_contour,
+                                      not(are_remaining_nodes)])           
+                 
+            
+            
+            # Search for point to add to end of contour
+            if not(is_beginning_converged):
+                 
+                 flipped_contour, current_nodes, exit_flag2 = \
+                      find_and_add_closest_node(current_nodes, temp_contour[::-1], maximum_tol)
+                      
+                 temp_contour = flipped_contour[::-1]
+                      
+            # Update convergence criteria: did we finish the contour by trying to connect a point to the start?
+            are_remaining_nodes = check_for_remaining_nodes(current_nodes)
+            try:
+                 is_closed_contour = np.all(temp_contour[0] == temp_contour[-1])
+            except:
+                 is_closed_contour = True
+                      
+            num_iterations += 1
+            is_contour_disconnected = exit_flag1 and exit_flag2
+               
+            is_search_converged = any([(num_iterations >= max_num_iterations),
+                                        is_closed_contour,
+                                        not(are_remaining_nodes),
+                                        is_contour_disconnected])
+                 
+     return temp_contour, current_nodes
+
+def check_for_remaining_nodes(current_nodes):
+     
+     try:
+          are_remaining_nodes = (current_nodes.shape[1]) > 0
+     except:
+          are_remaining_nodes = False
+          
+     return are_remaining_nodes
+    
 @typechecked
 def create_contours(intersection_edges: list[list[Edge]]) -> list[list[list[np.ndarray]]]:
     """
@@ -156,14 +395,78 @@ def create_contours(intersection_edges: list[list[Edge]]) -> list[list[list[np.n
         looping over all the other edges to figure out which are connected to it?
     """
     layers: list[list[list[np.ndarray]]] = []
+    maximum_tol = 0.0010
+    decimal_tol = 4
 
-    for i, layer in enumerate(intersection_edges):
+    for layer_index, layer in enumerate(intersection_edges):
+
+        print(f'Layer: {layer_index}')
         # TODO: Your code here.
         #       Build potentially many contours out of a single layer by connecting edges.
-        contours: list[list[np.ndarray]] = []
-        layers.append(contours)
+        
+        # Only proceed if there is information on this layer
+        temp_layer_contours = []
+        
+        if layer:
+             
+             # Extract edge start and end nodes for this layer
+             num_edges = len(layer)
+             is_remaining_edge = np.full((num_edges,), True)
+             reordered_edges = np.zeros((num_edges, 6))
+             
+             # Sort edges so that by [x, y, z] within each edge (ascending)
+             for edge_index in range(num_edges):
+                  
+                  temp_nodes = np.array([layer[edge_index].start, layer[edge_index].end])
+                  
+                  sort_indices = np.lexsort((temp_nodes[:,2],
+                                            temp_nodes[:,1],
+                                            temp_nodes[:,0]))
+                  
+                  # reordered_edge = temp_nodes[sort_indices, :]
+                  reordered_edges[edge_index, :] = temp_nodes[sort_indices, :].flatten()                
+
+             all_nodes = np.zeros((2, num_edges, 3))
+             all_nodes[0, :, :] = reordered_edges[:, 0:3]
+             all_nodes[1, :, :] = reordered_edges[:, 3:6]
+             
+             current_nodes = all_nodes
+             
+             # Initialize convergence criteria
+             num_iterations = 0
+             max_contours_per_layer = 1000
+             are_remaining_nodes = True
+             is_layer_converged = any([num_iterations >= max_contours_per_layer,
+                                       not(are_remaining_nodes)])
+             
+             while not(is_layer_converged):
+                  temp_contour, current_nodes = find_individual_contour(current_nodes, maximum_tol)
+                  
+                  # After finishing this contour, add it to the list of contours for this layer
+                  if len(temp_contour) > 0:
+                       if all(temp_contour[0] == temp_contour[-1]):
+                        
+                            # find_individual_contours can include the endpoint (duplicated)
+                            # We will need to remove this to match the gcode exporting
+                            temp_layer_contours.append(temp_contour[:-1])
+                       else:
+                            temp_layer_contours.append(temp_contour)
+                    
+                  num_iterations += 1
+                  are_remaining_nodes = check_for_remaining_nodes(current_nodes)
+                  is_layer_converged = any([num_iterations >= max_contours_per_layer,
+                                            not(are_remaining_nodes)])
+             
+             # After finishing this layer, add all contours from this layer
+             layers.append(temp_layer_contours)
+                 
 
     return layers
+
+
+
+
+
 
 
 @typechecked
