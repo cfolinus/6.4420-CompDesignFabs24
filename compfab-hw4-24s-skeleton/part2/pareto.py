@@ -18,7 +18,8 @@ def pareto_front(points: np.ndarray) -> np.ndarray:
     #      supports sorting by multiple columns in a user-specified order. You can decide whichever
     #      order you want here.
     #   2. Indexing a NumPy array using the output of `np.lexsort` returns the sorted array.
-    points = points     # <--
+    # points = points     # <--
+    points = np.array([(points[i, 0], points[i, 1]) for i in np.lexsort((points[:,1], points[:,0]))])
 
     pareto_indices = [0]        # List of indices to Pareto-optimal points (in the sorted array)
     pareto_x = points[0, 0]     # X value of the last Pareto-optimal point
@@ -30,14 +31,14 @@ def pareto_front(points: np.ndarray) -> np.ndarray:
         # Add this point to the Pareto front if it isn't dominated by the last Pareto-optimal point
         # --------
         # TODO: You code here.
-        if False:       # <--
-            ...         # <--
+        if pareto_y > points[i, 1]:       # <--
+            pareto_indices.append(i)
 
             # Update the last Pareto-optimal point using this point
             # --------
             # TODO: Your code here.
-            pareto_x = ...      # <--
-            pareto_y = ...      # <--
+            pareto_x = points[i, 0]
+            pareto_y = points[i, 1]
 
     # Return the Pareto front
     pareto_front = points[pareto_indices]

@@ -8,6 +8,8 @@ import os
 import argparse
 import numpy as np
 
+# from math import sqrt
+
 
 class TopologyOptimization:
     '''
@@ -72,27 +74,30 @@ class TopologyOptimization:
             # Force: downward, 1N, at the midpoint of the right side of the beam
             # --------
             # TODO: Your code here. You only need to set one element in the f array.
-            self.f[0, 0, 0] = 0
+            # self.f[0, 0, 0] = 0
+            self.f[grid_size_x, grid_size_y // 2, 1] = -1
 
             # Fixed dimensions: top-left and bottom-left corners, both dimensions
             # --------
             # TODO: Your code here. Use `bc.extend([[i, j, 0], [i, j, 1]])` to add both dimensions
             # of a node (i, j) to boundary constraints
-            ...     # <--
-            ...     # <--
+            bc.extend([0, 0, j] for j in range(2))
+            bc.extend([0, grid_size_y, j] for j in range(2))
 
         ## Bridge
         elif bc_type == 'bridge':
             # Force: downward, 1N, along the top side of the beam
             # --------
             # TODO: Your code here. You should set a slice of elements in the f array.
-            self.f[0, 0, 0] = 0
+            # self.f[0, 0, 0] = 0
+            self.f[:, grid_size_y, 1] = -1
 
             # Fixed dimensions: bottom-left and bottom-right corners, both dimensions
             # --------
             # TODO: Your code here.
-            ...     # <--
-            ...     # <--
+            bc.extend([0, 0, j] for j in range(2))
+            bc.extend([grid_size_x, 0, j] for j in range(2))
+
 
         else:
             raise ValueError(f"Unrecognized boundary condition type '{bc_type}'")
@@ -283,7 +288,8 @@ class TopologyOptimization:
             #   d' = d * sqrt(sensitivity / lambda)
             # --------
             # TODO: Your code here
-            d_new = d       # <--
+            # d_new = d       # <--
+            d_new = d * np.sqrt((s/m))
 
             # Clamp the new density values within the change limit
             # --------
@@ -293,7 +299,8 @@ class TopologyOptimization:
             # where `lb` and `ub` can be scalars or arrays. If they are arrays, their shapes should
             # match the shape of `x` exactly or within the broadcasting range (you don't have to
             # consider broadcasting here, though).
-            d_new = d_new       # <--
+            # d_new = d_new       # <--
+            d_new = np.clip(d_new, d - change_limit, d + change_limit)
 
             # Clamp the new density values within the valid density range
             d_new = np.clip(d_new, 1e-2, 1.0)
@@ -303,17 +310,24 @@ class TopologyOptimization:
             # TODO: Your code here. Fill in the condition and two branches.
             # HINT: Think about this question - if the total volume under the current lambda is
             # smaller than the target volume, should we increase or decrease lambda?
-            if True:        # <--
-                r = 0.0     # <--
+            if np.sum(d_new) < fraction * np.size(d_new):        # <--
+            # if true:
+                # r = 0.0     # <--
+                r = m
             else:
-                l = 0.0     # <--
+                # l = 0.0     # <--
+                l = m
 
         # Update the density field using the new-found lambda (`l` rather than `m`)
         # --------
         # TODO: Your code here. Apply your solution from the lines above.
-        d_new = d           # <--
-        d_new = d_new       # <--
+        # d_new = d           # <--
+        # d_new = d_new       # <--
+        # d_new = np.clip(d_new, 1e-2, 1.0)
+        d_new = d * np.sqrt((s/l))
+        d_new = np.clip(d_new, d - change_limit, d + change_limit)
         d_new = np.clip(d_new, 1e-2, 1.0)
+
         self.density[:] = d_new
 
 
@@ -373,8 +387,10 @@ class TopologyOptimization:
         ci, cj = w_size // 2, w_size // 2
         for i in range(w_size):
             for j in range(w_size):
-                dist = 0.0          # <--
-                w[i, j] = 0.0       # <--
+                # dist = 0.0          # <--
+                # w[i, j] = 0.0       # <--
+                dist = np.sqrt(((ci + 0.5) - (i + 0.5))**2 + ((cj + 0.5) - (j + 0.5))**2)
+                w[i, j] = np.max((0, 1.5 - dist))
 
         # Compute convolution for the denominator
         # -------
@@ -383,17 +399,20 @@ class TopologyOptimization:
         #   a_conv = convolve2d(a, kernel, mode='same')
         # setting `mode='same'` adds zero padding and makes sure the returned array has the same
         # shape as the input array.
-        d_conv = d      # <--
+        # d_conv = d      # <--
+        d_conv = convolve2d(s * d, w, mode = 'same')
 
         # Compute convolution for the numerator
         # --------
         # TODO: Your code here.
-        ds_conv = d     # <--
+        # ds_conv = d     # <--
+        ds_conv = convolve2d(d, w, mode = 'same')
 
         # Compute filtered sensitivities
         # --------
         # TODO: Your code here.
-        s_filtered = s      # <--
+        # s_filtered = s      # <--
+        s_filtered = d_conv / ds_conv
 
         return s_filtered
 

@@ -5,6 +5,12 @@ import subprocess
 # Root directory
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Add OPENSCAD EXECUABLE
+import os
+path = '/Users/cfolinus/Applications/OpenSCAD.app/Contents/MacOS/'
+os.environ['PATH'] += ':'+path
+print (os.environ['PATH'])
+
 # Create folder for the meshes
 meshes_dir = os.path.join(ROOT_DIR, 'data', 'assignment5', 'bridges')
 os.makedirs(meshes_dir, mode=0o775, exist_ok=True)
