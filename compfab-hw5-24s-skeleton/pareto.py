@@ -20,8 +20,66 @@ def pareto_front(points: np.ndarray) -> np.ndarray:
     returns: (n_pareto, 2) in order of non-decreasing x
     """
     # TODO: 1.1
-    return np.array([])
+    assert points.ndim == 2 and points.shape[-1] == 2 and points.shape[0] > 0, \
+        'The input array must represent a set of 2D points'
 
+    # Sort the points by both properties
+    # --------
+    # TODO: Your code here.
+    # HINT:
+    #   1. The function you will use here is called `np.lexsort`, whose documentation is at
+    #      https://numpy.org/doc/stable/reference/generated/numpy.lexsort.html. `np.lexsort`
+    #      supports sorting by multiple columns in a user-specified order. You can decide whichever
+    #      order you want here.
+    #   2. Indexing a NumPy array using the output of `np.lexsort` returns the sorted array.
+    # points = points     # <--
+    # Sort points by 0th objective, then by 1st objective value
+    points = np.array([(points[i, 0], points[i, 1]) for i in np.lexsort((-points[:,1], points[:,0]))])
+
+     # Initialize storage of information about the pareto front
+    pareto_indices = [0]        # List of indices to Pareto-optimal points (in the sorted array)
+    pareto_x = points[0, 0]     # X value of the last Pareto-optimal point
+    pareto_y = points[0, 1]     # Y value of the last Pareto-optimal point
+
+    # Traverse the sorted array to figure out Pareto-optimal points
+    for i in range(points.shape[0]):
+
+        # Add this point to the Pareto front if it isn't dominated by the last Pareto-optimal point
+        # --------
+        # TODO: You code here.        
+
+        if pareto_y > points[i, 1]:       # <--
+             # If the x-value of our current point is the same as the last
+             # point on the pareto front, remove the last point on the pareto
+             # front and replace it with this point
+             if pareto_x == points[i, 0]:
+                  
+                  # Remove the last point from pareto_indices
+                  pareto_indices.pop(-1)
+                  
+                  # Add current point
+                  pareto_indices.append(i)
+                  
+                  # Update the last Pareto-optimal point using this point
+                  pareto_x = points[i, 0]
+                  pareto_y = points[i, 1]
+        
+        
+             # If the current y-value is higher-performance (lower objective) than 
+             # the most recent point on our pareto front, add this point to the pareto front
+             else:        
+                 pareto_indices.append(i)
+     
+                 # Update the last Pareto-optimal point using this point
+                 # --------
+                 # TODO: Your code here.
+                 pareto_x = points[i, 0]
+                 pareto_y = points[i, 1]
+
+    # Return the Pareto front
+    pareto_front = points[pareto_indices]
+
+    return pareto_front
 
 def pareto_brute_force(points: np.ndarray) -> np.ndarray:
     """
